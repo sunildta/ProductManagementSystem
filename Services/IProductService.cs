@@ -7,25 +7,26 @@ namespace ProductManagementSystem.Services
 {
     public interface IProductService
     {
-        //validate crud 
-        (bool Success, String Message) AddProduct(Product product);
-        (bool Success, String Message) UpdateProduct(Product product);
-        (bool Success, String Message) DeleteProduct(int id);
+        // ── Validated async CRUD ──────────────────────────────────────────────────
+        Task<(bool Success, string Message)> AddProductAsync(Product product);
+        Task<(bool Success, string Message)> UpdateProductAsync(Product product);
+        Task<(bool Success, string Message)> DeleteProductAsync(int id);
 
-        Product? GetById(int id);
-        IEnumerable<Product> GetAll();
+        Task<Product?> GetByIdAsync(int id);
+        Task<Product?> GetByIdWithDetailsAsync(int id);
+        Task<IEnumerable<Product>> GetAllAsync();
 
-        // LINQ Queries
-        IEnumerable<Product> GetByCategory(string category);
-        IEnumerable<Product> GetByPriceRange(decimal min, decimal max);
-        IEnumerable<Product> GetSortedByPrice(bool ascending = true);
-        IEnumerable<Product> GetTopNMostExpensive(int n = 5);
+        // ── Queries ───────────────────────────────────────────────────────────────
+        Task<IEnumerable<Product>> GetByCategoryAsync(string category);
+        Task<IEnumerable<Product>> GetByPriceRangeAsync(decimal min, decimal max);
+        Task<IEnumerable<Product>> GetSortedByPriceAsync(bool ascending = true);
+        Task<IEnumerable<Product>> GetTopNMostExpensiveAsync(int n = 5);
 
-        // Business Logic Using configuration
-        decimal GetTotalInventoryValue();
+        // ── Business logic ────────────────────────────────────────────────────────
+        Task<decimal> GetTotalInventoryValueAsync();
+        Task<IEnumerable<Product>> GetLowStockProductsAsync();
         decimal CalculatePriceWithTax(decimal price);
         decimal CalculateDiscountedPrice(decimal price);
-        IEnumerable<Product> GetLowStockProducts();
 
     }
 }

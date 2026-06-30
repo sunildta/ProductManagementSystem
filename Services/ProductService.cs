@@ -9,6 +9,7 @@ using ProductManagementSystem.Configuration;
 using ProductManagementSystem.Models;
 using ProductManagementSystem.Repositories;
 
+
 namespace ProductManagementSystem.Services
 {
     /// <summary>
@@ -18,28 +19,29 @@ namespace ProductManagementSystem.Services
     ///   - Configuration-driven behaviour via IOptions&lt;AppSettings&gt;
     ///   - Validation before every write operation
     /// </summary>
-    internal class ProductService : IProductService
+    class ProductService : IProductService
     {
         private readonly IProductRepository _repo;
         private readonly IValidationService _validator;
-        private readonly AppSettings _settings;
+        private readonly IOptionsMonitor<AppSettings> _options;
         private readonly ILogger<ProductService> _logger;
 
         //// All dependencies injected by the DI container — no "new" anywhere
         public ProductService(
             IProductRepository repo,
             IValidationService validator,
-            IOptions<AppSettings> options,
+            IOptionsMonitor<AppSettings> options,
             ILogger<ProductService> logger)
         {
             _repo = repo;
             _validator = validator;
-            _settings = options.Value;
+            _options = options;
             _logger = logger;
         }
 
-        //Validate CRUD
-        public (bool Success, string Message) AddProduct(Product product)
+        // ── Validated CRUD ────────────────────────────────────────────────────────
+
+        public async Task<(bool Success, string Message)> AddProductAsync(Product product)
         {
             if (!_validator.Validate(product, out var errors))
             {
@@ -48,54 +50,54 @@ namespace ProductManagementSystem.Services
                 return (false, msg);
             }
 
-            _repo.Add(product);
-            _logger.LogInformation("Product added: Id={Id}, Name={Name}", product.Id, product.Name);
-            return (true, $"Product \"{product.Name}\" added sucessfully.");
-
+            await _repo.AddAsync(product);
+            _logger.LogInformation("Product added: Id={Id} Name={Name}", product.Id, product.Name);
+            return (true, $"Product \"{product.Name}\" added successfully.");
         }
 
-        public (bool Success, string Message) UpdateProduct(Product product)
+        public async Task<(bool Success, string Message)> UpdateProductAsync(Product product)
         {
             if (!_validator.Validate(product, out var errors))
                 return (false, string.Join(" | ", errors));
-            bool updated = _repo.Update(product);
-            if (!updated)
-                return (false, $"Product Id {product.Id} not found.");
+
+            bool updated = await _repo.UpdateAsync(product);
+            if (!updated) return (false, $"Product ID {product.Id} not found.");
 
             _logger.LogInformation("Product updated: Id={Id}", product.Id);
-            return (true, $"Product \"{ product.Name}\" updated successfully.");
+            return (true, $"Product \"{product.Name}\" updated successfully.");
         }
-        public (bool Success, String Message) DeleteProduct(int id)
+
+        public async Task<(bool Success, string Message)> DeleteProductAsync(int id)
         {
-            bool deleted = _repo.Delete(id);
-            if (!deleted)
-                return (false, $"Product Id {id} not found.");
+            bool deleted = await _repo.DeleteAsync(id);
+            if (!deleted) return (false, $"Product ID {id} not found.");
 
-            _logger.LogInformation("Product deleted:m Id={Id}", id);
-            return (true, $"Product ID {id} deleted");
+            _logger.LogInformation("Product deleted: Id={Id}", id);
+            return (true, $"Product ID {id} deleted.");
         }
-        // -Read query (pass through repo)
-        public Product? GetById(int id) => _repo.GetById(id);
-        public IEnumerable<Product> GetAll() => _repo.GetAll();
-        public IEnumerable<Product> GetByCategory(string category) => _repo.GetByCategory(category);
-        public IEnumerable<Product> GetByPriceRange(decimal min, decimal max) => _repo.GetByPriceRange(min, max);
-        public IEnumerable<Product> GetSortedByPrice(bool ascending = true) => _repo.GetSortedByPrice(ascending);
-        public IEnumerable<Product> GetTopNMostExpensive(int n = 5) => _repo.GetTopNMostExpensive(n);
-        public decimal GetTotalInventoryValue() => _repo.GetTotalInventoryValue();
 
-        // Business Logic Using IOption<AppSetting>
-        /// <summary>Price + tax from appsettings (TaxRate = 0.18 → 18%).</summary>
-        public decimal CalculatePriceWithTax(decimal price) => Math.Round(price * (1 + _settings.TaxRate),2);
+        // ── Reads ─────────────────────────────────────────────────────────────────
 
-        /// <summary>Price after discount from appsettings (DiscountPercentage = 10 → 10% off).</summary>
-        public decimal CalculateDiscountedPrice(decimal price) => Math.Round(price * (1 - _settings.DiscountRate/100m),2);
+        public Task<Product?> GetByIdAsync(int id) => _repo.GetByIdAsync(id);
+        public Task<Product?> GetByIdWithDetailsAsync(int id) => _repo.GetByIdWithDetailsAsync(id);
+        public Task<IEnumerable<Product>> GetAllAsync() => _repo.GetAllAsync();
+        public Task<IEnumerable<Product>> GetByCategoryAsync(string category) => _repo.GetByCategoryAsync(category);
+        public Task<IEnumerable<Product>> GetByPriceRangeAsync(decimal min, decimal max) => _repo.GetByPriceRangeAsync(min, max);
+        public Task<IEnumerable<Product>> GetSortedByPriceAsync(bool ascending = true) => _repo.GetSortedByPriceAsync(ascending);
+        public Task<IEnumerable<Product>> GetTopNMostExpensiveAsync(int n = 5) => _repo.GetTopNMostExpensiveAsync(n);
+        public Task<decimal> GetTotalInventoryValueAsync() => _repo.GetTotalInventoryValueAsync();
 
-        /// <summary>Products at or below MinimumStockLevel from appsettings.</summary>
-        public IEnumerable<Product> GetLowStockProducts() =>
-            _repo.GetAll()
-            .Where(p => p.Stock <= _settings.MinimumStockLevel)
-            .OrderBy(p => p.Stock);
-    
+        public Task<IEnumerable<Product>> GetLowStockProductsAsync() =>
+            _repo.GetLowStockAsync(_options.CurrentValue.MinimumStockLevel);
+
+        // ── Business Logic (sync — pure math, no DB) ──────────────────────────────
+
+        public decimal CalculatePriceWithTax(decimal price) =>
+            Math.Round(price * (1 + _options.CurrentValue.TaxRate), 2);
+
+        public decimal CalculateDiscountedPrice(decimal price) =>
+            Math.Round(price * (1 - _options.CurrentValue.DiscountPercentage / 100m), 2);
+
 
 
     }
