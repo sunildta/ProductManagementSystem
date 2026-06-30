@@ -1,12 +1,68 @@
-﻿using ProductManagementSystem.Models;
+﻿using ProductManagementSystem.IOptions;
+using ProductManagementSystem.Models;
 using ProductManagementSystem.Repositories;
 using ProductManagementSystem.Services;
 using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace ProductManagementSystem.IOptions
+namespace ProductManagementSystem.DisplayServices;
+/// <summary>
+/// Top-level router only. Each entity's menu logic lives in its own
+/// *MenuHandler class under Menus/ — this class just wires them together
+/// and owns the main loop.
+/// </summary>
+public class MenuService(
+    ProductMenuHandler productMenu,
+    CategoryMenuHandler categoryMenu,
+    SupplierMenuHandler supplierMenu,
+    ReviewMenuHandler reviewMenu)
 {
+    public void Run() => RunAsync().GetAwaiter().GetResult();
+
+    private async Task RunAsync()
+    {
+        while (true)
+        {
+            ShowMainMenu();
+            switch (MenuHelpers.Prompt("Enter choice"))
+            {
+                case "1": await productMenu.ShowAsync(); break;
+                case "2": await categoryMenu.ShowAsync(); break;
+                case "3": await supplierMenu.ShowAsync(); break;
+                case "4": await reviewMenu.ShowAsync(); break;
+                case "0":
+                    DisplayService.Header("Goodbye!");
+                    return;
+                default:
+                    DisplayService.Error("Invalid option. Try again.");
+                    MenuHelpers.Pause();
+                    break;
+            }
+        }
+    }
+
+    private static void ShowMainMenu()
+    {
+        Console.Clear();
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine("╔══════════════════════════════════════╗");
+        Console.WriteLine("║        PRODUCT MANAGER  v5.0         ║");
+        Console.WriteLine("╠══════════════════════════════════════╣");
+        Console.ResetColor();
+        Console.WriteLine("║  1. Products                         ║");
+        Console.WriteLine("║  2. Categories                        ║");
+        Console.WriteLine("║  3. Suppliers                         ║");
+        Console.WriteLine("║  4. Reviews                           ║");
+        Console.ForegroundColor = ConsoleColor.DarkGray;
+        Console.WriteLine("║──────────────────────────────────────║");
+        Console.ResetColor();
+        Console.WriteLine("║  0. Exit                             ║");
+        Console.WriteLine("╚══════════════════════════════════════╝");
+    }
+}
+
+/*{
     // CONSTRUCTOR INJECTION: Handing the dependency to the class when it is created.
     /// <summary>
     /// Interactive console menu.
@@ -124,7 +180,7 @@ namespace ProductManagementSystem.IOptions
                 DisplayService.Error("Invalid stock."); Pause(); return;
             }
 
-            var product = new Product { Name = name, Category = category, Price = price, Stock = stock };
+            var product = new Product { Name = name, Category = new Category { Name = category }, Price = price, Stock = stock };
             var (success, message) = svc.AddProduct(product);
 
             if (success)
@@ -166,8 +222,8 @@ namespace ProductManagementSystem.IOptions
             string nameInput = Prompt($"Name [{existing.Name}]");
             if (!string.IsNullOrWhiteSpace(nameInput)) existing.Name = nameInput;
 
-            string catInput = Prompt($"Category [{existing.Category}]");
-            if (!string.IsNullOrWhiteSpace(catInput)) existing.Category = catInput;
+            string catInput = Prompt($"Category [{existing.Category?.Name}]");
+            if (!string.IsNullOrWhiteSpace(catInput)) existing.Category = new Category { Name = catInput };
 
             string priceInput = Prompt($"Price [{existing.Price:F2}]");
             if (!string.IsNullOrWhiteSpace(priceInput) &&
@@ -354,6 +410,6 @@ namespace ProductManagementSystem.IOptions
             Console.ReadKey(intercept: true);
         }
     }
-}
-    
+}*/
+
 
