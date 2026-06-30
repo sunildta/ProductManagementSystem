@@ -1,67 +1,129 @@
-﻿using ProductManagementSystem.Models;
+using ProductManagementSystem.Models;
 using System;
 using System.Linq;
 using System.Collections.Generic;
 using System.Text;
+using ProductManagementSystem.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace ProductManagementSystem.Repositories
 {
+    /// <summary>
+    /// EF Core implementation of IProductRepository.
+    /// DbContext is injected as Scoped — one instance per DI scope (request).
+    /// AsNoTracking() used on read-only queries for better performance.
+    /// </summary>
     public class ProductRepository : IProductRepository
     {
-        private readonly List<Product> _products = new();
-        private int _nextId = 1;
+        private readonly ApplicationDbContext _db;
+        public ProductRepository(ApplicationDbContext db) => _db = db;
 
         // CRUD
-        public void Add(Product product)
+        public async Task AddAsync(Product product)
         {
-            product.Id = _nextId++;
-            _products.Add(product);
+            await _db.Products.AddAsync(product);
+            await _db.SaveChangesAsync();
+  
         }
 
-        public Product? GetById(int id) => _products.FirstOrDefault(p => p.Id == id);
-        public IEnumerable<Product> GetAll() => _products.AsReadOnly();
-        public bool Update(Product product)
+        public async Task<Product?> GetByIdAsync (int id) =>await _db.Products
+            .Include(p => p.Category)   // eager load
+            .Include(p => p.Supplier)
+            .FirstOrDefaultAsync(p => p.Id == id);
+
+        public async Task<IEnumerable<Product>> GetAllAsync() => await _db.Products
+            .Include(p => p.Category)
+            .Include(p => p.Supplier)
+            .AsNoTracking() //coz read only
+            .OrderBy(p => p.Name)
+            .ToListAsync();
+
+        public async Task<bool> UpdateAsync(Product product)
         {
-            int index = _products.FindIndex(p => p.Id == product.Id);
-            if (index == -1) return false;
-            _products[index] = product;
+            var existing = await _db.Products.FindAsync(product.Id);
+            if (existing is null) return false;
+            //update field a user can change
+            existing.Name = product.Name;
+            existing.Price = product.Price;
+            existing.Stock = product.Stock;
+            existing.CategoryId = product.CategoryId;
+            existing.SupplierId = product.SupplierId;
+
+            await _db.SaveChangesAsync();
             return true;
+
         }
-        public bool Delete(int id)
+        public async Task<bool> DeleteAsync(int id)
         {
-            Product? product = _products.FirstOrDefault(p => p.Id == id);
+            var product = await _db.Products.FindAsync(id);
             if (product is null) return false;
-            _products.Remove(product);
+
+            _db.Products.Remove(product);
+            await _db.SaveChangesAsync();
             return true;
         }
+
+
         // ── LINQ Queries ──────────────────────────────────────────────────────────
 
         /// <summary>Find all products in a given category (case-insensitive).</summary>
-        public IEnumerable<Product> GetByCategory(string category) =>
-            _products
-                .Where(p => p.Category.Equals(category, StringComparison.OrdinalIgnoreCase))
-                .OrderBy(p => p.Name);
+        public async Task<IEnumerable<Product>> GetByCategoryAsync(string categoryName) => await _db.Products
+             .Include(p => p.Category)
+             .Include(p => p.Supplier)
+             .AsNoTracking()
+             .Where(p => p.Category.Name.ToLower() == categoryName.ToLower())
+             .OrderBy(p => p.Name)
+             .ToListAsync();
 
         /// <summary>Find products whose price falls within [min, max].</summary>
-        public IEnumerable<Product> GetByPriceRange(decimal min, decimal max) =>
-            _products
-                .Where(p => p.Price >= min && p.Price <= max)
-                .OrderBy(p => p.Price);
+        public async Task<IEnumerable<Product>> GetByPriceRangeAsync(decimal min, decimal max) => await _db.Products
+            .Include(p => p.Category)
+            .AsNoTracking()
+            .Where(p => p.Price >= min && p.Price <= max)
+            .OrderBy(p => p.Price)
+            .ToListAsync();
 
         /// <summary>Return all products sorted by price.</summary>
-        public IEnumerable<Product> GetSortedByPrice(bool ascending = true) =>
-            ascending
-                ? _products.OrderBy(p => p.Price)
-                : _products.OrderByDescending(p => p.Price);
+        public async Task<IEnumerable<Product>> GetSortedByPriceAsync(bool ascending = true)
+        {
+            var query = _db.Products
+                       .Include(p => p.Category)
+                       .AsNoTracking();
+
+            return await (ascending
+                ? query.OrderBy(p => p.Price)
+                : query.OrderByDescending(p => p.Price))
+                .ToListAsync();
+        }
 
         /// <summary>Sum of (Price × Stock) across every product.</summary>
-        public decimal GetTotalInventoryValue() =>
-            _products.Sum(p => p.Price * p.Stock);
+        public async Task<decimal> GetTotalInventoryValueAsync() => await _db
+            .Products.SumAsync(p => p.Price * p.Stock);
 
         /// <summary>Return the N most expensive products.</summary>
-        public IEnumerable<Product> GetTopNMostExpensive(int n = 5) =>
-            _products
-                .OrderByDescending(p => p.Price)
-                .Take(n);
+        public async Task<IEnumerable<Product>> GetTopNMostExpensiveAsync(int n = 5) =>
+          await _db.Products
+                   .Include(p => p.Category)
+                   .AsNoTracking()
+                   .OrderByDescending(p => p.Price)
+                   .Take(n)
+                   .ToListAsync();
+
+        //low product threshold
+        public async Task<IEnumerable<Product>> GetLowStockAsync(int threshold) =>
+            await _db.Products
+             .Include(p => p.Category)
+             .AsNoTracking()
+             .Where(p => p.Stock <= threshold)
+             .OrderBy(p => p.Stock)
+             .ToListAsync();
+
+        // ── With all related data (for detail view) ───────────────────────────────
+        public async Task<Product?> GetByIdWithDetailsAsync(int id) =>
+            await _db.Products
+                     .Include(p => p.Category)
+                     .Include(p => p.Supplier)
+                     .Include(p => p.Reviews)   // explicit load of reviews
+                     .FirstOrDefaultAsync(p => p.Id == id);
     }
 }
