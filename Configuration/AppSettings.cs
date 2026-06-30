@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -11,11 +11,11 @@ namespace ProductManagementSystem.Configuration
 {
     public class AppSettings
     {
-        public const string SectionName = "appSettings";
+        public const string SectionName = "AppSettings";
         //tax rate 
         public decimal TaxRate { get; set; } = 0.18m;
         //discount percentage
-        public decimal DiscountRate { get; set; } = 10m;
+        public decimal DiscountPercentage { get; set; } = 10m;
         //threshold alert 
         public int MinimumStockLevel { get; set; } = 5;
         //max allowed character in product name 
