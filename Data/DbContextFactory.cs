@@ -20,7 +20,7 @@ namespace ProductManagementSystem.Data
 
 
             string connectionString = config["Database:ConnectionString"]
-                ?? "Host=localhost;Port=5432;Database=ProductManagementSystem;Username=postgres;Password=Sunil-2003";
+                ?? "Host=localhost;Port=port;Database=database;Username=username;Password=password";
 
             var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
             optionsBuilder.UseNpgsql(connectionString);
